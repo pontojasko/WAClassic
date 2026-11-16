@@ -603,7 +603,9 @@
 	NSString *kind = chat[@"lastKind"];
 	BOOL fromMe = [chat[@"lastFromMe"] boolValue];
 	NSString *text = chat[@"lastText"];
-	if ([kind isEqualToString:@"call"]) {
+	if ([kind hasPrefix:@"view-once-"]) {
+		text = WAKindLabel(kind);
+	} else if ([kind isEqualToString:@"call"]) {
 		text = WACallText(@{@"text": text ?: @"", @"fromMe": @(fromMe), @"secs": chat[@"lastSecs"] ?: @0});
 	} else if ([kind isEqualToString:@"audio"]) {
 		NSInteger secs = [chat[@"lastSecs"] integerValue];
