@@ -239,7 +239,9 @@ func (s *Store) Chats() ([]Chat, error) {
 			&c.LastFromMe, &c.LastSender, &c.LastStatus, &c.LastSecs, &c.Archived); err != nil {
 			return nil, err
 		}
-		if c.LastText == "" && c.LastKind != "" && c.LastKind != "audio" {
+		if c.LastKind == "view-once-photo" || c.LastKind == "view-once-video" || c.LastKind == "view-once-media" {
+			c.LastText = kindLabel(c.LastKind)
+		} else if c.LastText == "" && c.LastKind != "" && c.LastKind != "audio" {
 			c.LastText = kindLabel(c.LastKind)
 		}
 		out = append(out, c)
@@ -376,6 +378,12 @@ func kindLabel(kind string) string {
 		return "Location"
 	case "contact":
 		return "Contact"
+	case "view-once-photo":
+		return "View-once photo · open on your main phone"
+	case "view-once-video":
+		return "View-once video · open on your main phone"
+	case "view-once-media":
+		return "View-once media · open on your main phone"
 	}
 	return "Message"
 }

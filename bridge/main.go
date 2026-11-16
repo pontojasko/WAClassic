@@ -281,9 +281,15 @@ func (b *Bridge) apiChats(w http.ResponseWriter, r *http.Request) {
 		jid, _ := types.ParseJID(chats[i].JID)
 		chats[i].Group = jid.Server == types.GroupServer
 		chats[i].Muted = b.mutedUntil(ctx, jid) != 0
-		if chats[i].Name == "" {
-			chats[i].Name = b.displayName(ctx, jid)
+		contactName := ""
+		if !chats[i].Group {
+			contactName = b.contactName(ctx, jid)
 		}
+		fallback := ""
+		if chats[i].Name == "" && (chats[i].Group || contactName == "") {
+			fallback = b.displayName(ctx, jid)
+		}
+		chats[i].Name = chatDisplayName(chats[i].Name, contactName, fallback, chats[i].Group)
 		if chats[i].Group && !chats[i].LastFromMe && chats[i].LastSender != "" {
 			sender, _ := types.ParseJID(chats[i].LastSender)
 			chats[i].LastSenderName = b.displayName(ctx, sender)
@@ -293,6 +299,18 @@ func (b *Bridge) apiChats(w http.ResponseWriter, r *http.Request) {
 		chats = []Chat{}
 	}
 	writeJSON(w, map[string]any{"chats": chats, "upd": b.store.upd.Load()})
+}
+
+// chatDisplayName keeps group subjects, but uses the current address book name
+// for individual chats so stale history names cannot hide a saved contact.
+func chatDisplayName(stored, contact, fallback string, group bool) string {
+	if !group && contact != "" {
+		return contact
+	}
+	if stored != "" {
+		return stored
+	}
+	return fallback
 }
 
 func (b *Bridge) withNames(ctx context.Context, msgs []Message) []Message {

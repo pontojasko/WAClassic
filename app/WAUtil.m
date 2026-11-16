@@ -59,7 +59,10 @@ NSString *WAKindLabel(NSString *kind) {
 	static NSDictionary *labels;
 	static NSUInteger gen;
 	if (!labels || gen != WALanguageGeneration()) gen = WALanguageGeneration(), labels = @{@"image": WAL(@"Photo"), @"video": WAL(@"Video"), @"audio": WAL(@"Audio"), @"sticker": WAL(@"Sticker"),
-		@"document": WAL(@"Document"), @"location": WAL(@"Location"), @"contact": WAL(@"Contact"), @"call": WAL(@"Voice call")};
+		@"document": WAL(@"Document"), @"location": WAL(@"Location"), @"contact": WAL(@"Contact"), @"call": WAL(@"Voice call"),
+		@"view-once-photo": WAL(@"View-once photo · open on your main phone"),
+		@"view-once-video": WAL(@"View-once video · open on your main phone"),
+		@"view-once-media": WAL(@"View-once media · open on your main phone")};
 	return labels[kind] ?: WAL(@"Message");
 }
 

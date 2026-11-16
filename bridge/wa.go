@@ -111,7 +111,7 @@ func (b *Bridge) onMessage(e *events.Message, live bool) {
 		b.onReaction(ctx, chat, b.chatKey(ctx, e.Info.Sender), e.Info.IsFromMe, r, live)
 		return
 	}
-	kind, text := describe(e.Message)
+	kind, text, raw := describeEvent(e)
 	id := messageID(e)
 	if kind == "" || id == "" {
 		return // receipts, reactions, motion photo copies etc
@@ -132,10 +132,6 @@ func (b *Bridge) onMessage(e *events.Message, live bool) {
 	if m.FromMe {
 		m.Status = statusSent
 	}
-	var raw []byte
-	if kind != "text" {
-		raw, _ = proto.Marshal(e.Message)
-	}
 	added, err := b.store.AddMessage(m, raw, live)
 	if err != nil {
 		log.Printf("store message: %v", err)
@@ -147,6 +143,25 @@ func (b *Bridge) onMessage(e *events.Message, live bool) {
 			b.store.notify()
 		}
 	}
+}
+
+func describeEvent(e *events.Message) (kind, text string, raw []byte) {
+	kind, text = describe(e.Message)
+	if e.IsViewOnce {
+		switch kind {
+		case "image":
+			kind = "view-once-photo"
+		case "video":
+			kind = "view-once-video"
+		default:
+			kind = "view-once-media"
+		}
+		return kind, "", nil // never persist a payload or caption for view-once media
+	}
+	if kind != "text" {
+		raw, _ = proto.Marshal(e.Message)
+	}
+	return kind, text, raw
 }
 
 // new whatsapp sends hd photos/videos twice: the normal one and an hd copy pointing at it.
