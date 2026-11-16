@@ -15,17 +15,17 @@ type Message struct {
 	Sender string `json:"sender"`
 	Name   string `json:"name,omitempty"`
 	// for notifications
-	ChatName string `json:"chatName,omitempty"`
-	Muted    bool   `json:"muted,omitempty"` // used by the app to suppress in-app alerts
-	FromMe   bool   `json:"fromMe"`
-	TS       int64  `json:"ts"`
-	Kind     string `json:"kind"`
-	Text     string `json:"text"`
-	Status   int    `json:"status"`
-	Secs     int    `json:"secs,omitempty"`
-	MediaWidth  int `json:"mediaWidth,omitempty"`
-	MediaHeight int `json:"mediaHeight,omitempty"`
-	Upd      int64  `json:"upd"`
+	ChatName    string `json:"chatName,omitempty"`
+	Muted       bool   `json:"muted,omitempty"` // used by the app to suppress in-app alerts
+	FromMe      bool   `json:"fromMe"`
+	TS          int64  `json:"ts"`
+	Kind        string `json:"kind"`
+	Text        string `json:"text"`
+	Status      int    `json:"status"`
+	Secs        int    `json:"secs,omitempty"`
+	MediaWidth  int    `json:"mediaWidth,omitempty"`
+	MediaHeight int    `json:"mediaHeight,omitempty"`
+	Upd         int64  `json:"upd"`
 	// upd when stored; later changes only bump Upd
 	Created   int64      `json:"-"`
 	Reactions []Reaction `json:"reactions,omitempty"`
@@ -507,6 +507,23 @@ func (s *Store) MessageByID(chat, id string) (*Message, []byte, error) {
 	var raw []byte
 	var q Quote
 	err := s.db.QueryRow(`SELECT `+msgCols+`, raw FROM messages WHERE chat = ? AND id = ?`, chat, id).Scan(
+		&m.Seq, &m.ID, &m.Chat, &m.Sender, &m.FromMe, &m.TS, &m.Kind, &m.Text, &m.Status, &m.Upd, &m.Secs, &m.Created,
+		&q.ID, &q.Sender, &q.Kind, &q.Text, &raw)
+	if err != nil {
+		return nil, nil, err
+	}
+	if q.ID != "" {
+		m.Quote = &q
+	}
+	return &m, raw, nil
+}
+
+// MessageBySeq finds the exact row shown by the app, independent of JID aliases.
+func (s *Store) MessageBySeq(seq int64) (*Message, []byte, error) {
+	var m Message
+	var raw []byte
+	var q Quote
+	err := s.db.QueryRow(`SELECT `+msgCols+`, raw FROM messages WHERE seq = ?`, seq).Scan(
 		&m.Seq, &m.ID, &m.Chat, &m.Sender, &m.FromMe, &m.TS, &m.Kind, &m.Text, &m.Status, &m.Upd, &m.Secs, &m.Created,
 		&q.ID, &q.Sender, &q.Kind, &q.Text, &raw)
 	if err != nil {
