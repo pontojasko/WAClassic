@@ -209,13 +209,20 @@
 	WANoNetworkView *_noNetwork;
 	BOOL _loading;
 	BOOL _archivedOnly;
+	BOOL _choosingChat;
 	BOOL _showArchivedShortcut;
+	NSString *_chatSearch;
 	UIBarButtonItem *_penItem, *_deleteAllItem;
 	NSDictionary *_deleting; // nil = all
 }
 
 - (instancetype)initArchivedOnly {
 	if ((self = [self initWithStyle:UITableViewStylePlain])) _archivedOnly = YES;
+	return self;
+}
+
+- (instancetype)initForChoosingChat {
+	if ((self = [self initWithStyle:UITableViewStylePlain])) _choosingChat = YES;
 	return self;
 }
 
@@ -238,6 +245,14 @@
 	if ([self.tableView respondsToSelector:@selector(setAlwaysBounceVertical:)]) self.tableView.alwaysBounceVertical = YES;
 	if (_archivedOnly) {
 		self.title = WAL(@"Archived");
+	} else if (_choosingChat) {
+		self.title = WAL(@"Forward To");
+		self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:WAL(@"Cancel")
+			style:UIBarButtonItemStyleBordered target:self action:@selector(cancelChoosingChat)];
+		UISearchBar *search = [[UISearchBar alloc] initWithFrame:CGRectMake(0, 0, self.tableView.bounds.size.width, 44)];
+		search.delegate = self;
+		search.placeholder = WAL(@"Search");
+		self.tableView.tableHeaderView = search;
 	} else {
 		self.navigationItem.leftBarButtonItem = self.editButtonItem;
 		self.editButtonItem.title = WAL(@"Edit");
@@ -248,7 +263,7 @@
 		: [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCompose target:self action:@selector(compose)];
 	_deleteAllItem = [[UIBarButtonItem alloc] initWithTitle:WAL(@"Delete All") style:UIBarButtonItemStyleBordered
 		target:self action:@selector(deleteAllTapped)];
-	if (!_archivedOnly) {
+	if (!_archivedOnly && !_choosingChat) {
 		self.navigationItem.rightBarButtonItem = _penItem;
 		[self updateTableHeader];
 	}
@@ -264,6 +279,19 @@
 		name:WAClientNetworkChangedNotification object:nil];
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(networkChanged)
 		name:WAClientServerChangedNotification object:nil];
+}
+
+- (void)cancelChoosingChat {
+	[self dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (void)searchBar:(UISearchBar *)searchBar textDidChange:(NSString *)searchText {
+	_chatSearch = [searchText copy];
+	[self.tableView reloadData];
+}
+
+- (void)searchBarSearchButtonClicked:(UISearchBar *)searchBar {
+	[searchBar resignFirstResponder];
 }
 
 - (void)networkChanged {
@@ -460,10 +488,10 @@
 			[self updateEmptyState];
 			return;
 		}
-		self.navigationItem.title = self->_archivedOnly ? WAL(@"Archived") : WAL(@"Chats");
+		self.navigationItem.title = self->_archivedOnly ? WAL(@"Archived") : (self->_choosingChat ? WAL(@"Forward To") : WAL(@"Chats"));
 		self->_chats = json[@"chats"];
 		if (![self archivedCount]) self->_showArchivedShortcut = NO;
-		if (!self->_archivedOnly) [self updateTableHeader];
+		if (!self->_archivedOnly && !self->_choosingChat) [self updateTableHeader];
 		[self updateEmptyState];
 		[self.tableView reloadData];
 		[self updateBadge];
@@ -498,7 +526,12 @@
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
 	NSInteger count = 0;
-	for (NSDictionary *chat in _chats) if ([chat[@"archived"] boolValue] == _archivedOnly) count++;
+	for (NSDictionary *chat in _chats) {
+		if (!_choosingChat && [chat[@"archived"] boolValue] != _archivedOnly) continue;
+		if (_chatSearch.length && [(chat[@"name"] ?: @"") rangeOfString:_chatSearch options:NSCaseInsensitiveSearch].location == NSNotFound
+			&& [(chat[@"jid"] ?: @"") rangeOfString:_chatSearch options:NSCaseInsensitiveSearch].location == NSNotFound) continue;
+		count++;
+	}
 	return count;
 }
 
@@ -566,7 +599,9 @@
 - (NSDictionary *)chatAtIndexPath:(NSIndexPath *)indexPath {
 	NSInteger row = 0;
 	for (NSDictionary *chat in _chats) {
-		if ([chat[@"archived"] boolValue] != _archivedOnly) continue;
+		if (!_choosingChat && [chat[@"archived"] boolValue] != _archivedOnly) continue;
+		if (_chatSearch.length && [(chat[@"name"] ?: @"") rangeOfString:_chatSearch options:NSCaseInsensitiveSearch].location == NSNotFound
+			&& [(chat[@"jid"] ?: @"") rangeOfString:_chatSearch options:NSCaseInsensitiveSearch].location == NSNotFound) continue;
 		if (row++ == indexPath.row) return chat;
 	}
 	return nil;
@@ -643,6 +678,12 @@
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
 	NSDictionary *chat = [self chatAtIndexPath:indexPath];
 	if (!chat) return;
+	if (_choosingChat) {
+		void (^choose)(NSDictionary *) = self.onChooseChat;
+		[self dismissViewControllerAnimated:YES completion:^{ if (choose) choose(chat); }];
+		[tableView deselectRowAtIndexPath:indexPath animated:YES];
+		return;
+	}
 	WAChatViewController *vc = [[WAChatViewController alloc] initWithChat:chat];
 	[self.navigationController pushViewController:vc animated:YES];
 	[tableView deselectRowAtIndexPath:indexPath animated:YES];
